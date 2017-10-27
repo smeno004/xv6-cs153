@@ -64,6 +64,8 @@ runcmd(struct cmd *cmd)
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
 
+  int temp;
+
   if(cmd == 0)
     exit(0);
 
@@ -93,7 +95,7 @@ runcmd(struct cmd *cmd)
     lcmd = (struct listcmd*)cmd;
     if(fork1() == 0)
       runcmd(lcmd->left);
-    wait();
+    wait(temp);
     runcmd(lcmd->right);
     break;
 
@@ -117,8 +119,8 @@ runcmd(struct cmd *cmd)
     }
     close(p[0]);
     close(p[1]);
-    wait();
-    wait();
+    wait(temp);
+    wait(temp);
     break;
 
   case BACK:
@@ -166,7 +168,7 @@ main(void)
     }
     if(fork1() == 0)
       runcmd(parsecmd(buf));
-    wait();
+    wait(temp);
   }
   exit(0);
 }
