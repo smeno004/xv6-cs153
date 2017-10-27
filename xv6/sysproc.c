@@ -18,14 +18,14 @@ void
 sys_exit(int status)
 { 
   exit(status);
-  return 0;  // not reached
+  return;  // not reached
 }
 
 int
 sys_wait(void)
 {
   int stat;
-  argint(0, &stat);
+  argptr(0, (char**)&stat, 1);
   return wait(&stat);
 }
 
