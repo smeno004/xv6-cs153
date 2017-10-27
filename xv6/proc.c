@@ -321,6 +321,9 @@ wait(int *status)
   }
 }
 
+// Wait for a process with a specified pid to exit, 
+// store its status and return its pid.
+// Return -1 if the specified process is not running.
 int
 waitpid(int pid, int *status, int options)
 {
