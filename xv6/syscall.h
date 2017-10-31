@@ -22,3 +22,4 @@
 #define SYS_close  21
 #define SYS_helloworld 22
 #define SYS_waitpid 23
+#define SYS_switchPriority 24

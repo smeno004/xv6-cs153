@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 10;
 
   release(&ptable.lock);
 
@@ -261,6 +262,8 @@ exit(int status)
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
+  //wakeup1(curproc);
+
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
@@ -332,13 +335,23 @@ waitpid(int pid, int *status, int options)
   struct proc *curproc = myproc();
 
   acquire(&ptable.lock);
-  for(;;){
-    // Scan through table looking for the process to wait for.
-    foundProc = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->pid != pid)
-        continue;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid != pid)
+      continue;
+    else {
       foundProc = 1;
+      //curproc->chan = &p;
+      break;
+    }
+  }
+  if (!foundProc) {
+    release(&ptable.lock);
+    if (status)
+      *status = -1;
+    return -1;
+  }
+  else {
+    for(;;){
       if(p->state == ZOMBIE){
         // Found one.
         procid = p->pid;
@@ -354,17 +367,37 @@ waitpid(int pid, int *status, int options)
         release(&ptable.lock);
         return procid;
       }
+      else if (p->state == UNUSED) {
+       *status = p->status;
+       release(&ptable.lock);
+       return (pid);
+      }
+      sleep(curproc, &ptable.lock);
     }
+    //sleep(curproc, &ptable.lock);
+  }
 
     // No point waiting if process is not running.
-    if(!foundProc || curproc->killed){
-      release(&ptable.lock);
-      return -1;
-    }
+    //if(!foundProc || curproc->killed){
+      //release(&ptable.lock);
+      //return -1;
+    //}
 
     // Wait for process to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    //sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  //}
+}
+
+void
+switchPriority(int pid, int priority)
+{
+  struct proc * p;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      p->priority = priority;
+    }
   }
+  return;  
 }
 
 //PAGEBREAK: 42
@@ -379,18 +412,39 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *priorityProc;
   struct cpu *c = mycpu();
   c->proc = 0;
+  //int i = 63;
+
+  //for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  //  if (i >= 0) {
+  //    switchPriority(p->pid, i);
+  //  }
+  //}
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
+
+    struct proc *highPriorityProc = 0;
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+
+      highPriorityProc = p;
+      for(priorityProc = ptable.proc; priorityProc < &ptable.proc[NPROC]; priorityProc++) {
+        if (priorityProc->state != RUNNABLE)
+          continue;
+  
+        if (highPriorityProc->priority > priorityProc->priority)
+          highPriorityProc = priorityProc;
+      }
+
+      p = highPriorityProc;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -405,6 +459,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+      switchPriority(p->pid, 0);
     }
     release(&ptable.lock);
 

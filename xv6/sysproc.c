@@ -39,6 +39,12 @@ sys_waitpid(void)
   return waitpid(pid, &stat, options);
 }
 
+void
+sys_switchPriority(int pid, int priority)
+{
+  return switchPriority(pid, priority);
+}
+
 int
 sys_kill(void)
 {
