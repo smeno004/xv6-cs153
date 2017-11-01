@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->priority = 10;
+  p->priority = 20;
 
   release(&ptable.lock);
 
@@ -241,6 +241,8 @@ exit(int status)
 
   curproc->status = status;
 
+  //cprintf("Exit status passed in: %d, status of proc: %d %d\n", status, curproc->status, curproc->pid);
+
   if(curproc == initproc)
     panic("init exiting");
 
@@ -261,6 +263,13 @@ exit(int status)
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
+
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->waitingOn == curproc) {
+      wakeup1(p);
+      p->waitingOn = 0;
+    }
+  }
 
   //wakeup1(curproc);
 
@@ -299,7 +308,10 @@ wait(int *status)
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
-        kfree(p->kstack);
+	//cprintf("Wait: status: %d, p->pid: %d, pid: %d \n", p->status, p->pid, pid);
+	*status = p->status;
+	//cprintf("Wait: *status: %d \n", *status);
+	kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
         p->pid = 0;
@@ -307,7 +319,7 @@ wait(int *status)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-	*status = p->status;
+	//*status = p->status;
         release(&ptable.lock);
         return pid;
       }
@@ -315,6 +327,7 @@ wait(int *status)
 
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
+      *status = -1;
       release(&ptable.lock);
       return -1;
     }
@@ -331,10 +344,9 @@ int
 waitpid(int pid, int *status, int options)
 {
   struct proc *p;
-  int foundProc, procid;
+  int foundProc;//, procid;
   struct proc *curproc = myproc();
-
-  acquire(&ptable.lock);
+  acquire(&ptable.lock); 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid != pid)
       continue;
@@ -354,7 +366,8 @@ waitpid(int pid, int *status, int options)
     for(;;){
       if(p->state == ZOMBIE){
         // Found one.
-        procid = p->pid;
+        //procid = p->pid;
+	//cprintf("Waitpid: %d \n", pid);
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
@@ -365,13 +378,14 @@ waitpid(int pid, int *status, int options)
         p->state = UNUSED;
         *status = p->status;
         release(&ptable.lock);
-        return procid;
+        return (pid);
       }
       else if (p->state == UNUSED) {
        *status = p->status;
        release(&ptable.lock);
        return (pid);
       }
+      curproc->waitingOn = p;
       sleep(curproc, &ptable.lock);
     }
     //sleep(curproc, &ptable.lock);
@@ -414,6 +428,7 @@ scheduler(void)
   struct proc *p;
   struct proc *priorityProc;
   struct cpu *c = mycpu();
+  struct proc *highPriorityProc = 0;
   c->proc = 0;
   //int i = 63;
 
@@ -427,7 +442,7 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    struct proc *highPriorityProc = 0;
+    //struct proc *highPriorityProc = 0;
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
@@ -443,6 +458,8 @@ scheduler(void)
         if (highPriorityProc->priority > priorityProc->priority)
           highPriorityProc = priorityProc;
       }
+
+      //cprintf("Highest priority Proc pid: %d, with priority: %d \n", highPriorityProc->pid, highPriorityProc->priority);
 
       p = highPriorityProc;
 
