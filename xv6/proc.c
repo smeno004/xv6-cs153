@@ -458,6 +458,7 @@ scheduler(void)
         if (highPriorityProc->priority > priorityProc->priority)
           highPriorityProc = priorityProc;
       }
+     }
 
       //cprintf("Highest priority Proc pid: %d, with priority: %d \n", highPriorityProc->pid, highPriorityProc->priority);
 
@@ -477,7 +478,6 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
       switchPriority(p->pid, 0);
-    }
     release(&ptable.lock);
 
   }
