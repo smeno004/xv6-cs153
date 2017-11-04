@@ -304,10 +304,15 @@ wait(int *status)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != curproc)
         continue;
+      p->oldPriority = p->priority;
+      if (p->priority > curproc->priority){
+	p->priority = curproc->priority;
+      }
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
+	p->priority = p->oldPriority;
 	//cprintf("Wait: status: %d, p->pid: %d, pid: %d \n", p->status, p->pid, pid);
 	*status = p->status;
 	//cprintf("Wait: *status: %d \n", *status);
@@ -362,10 +367,15 @@ waitpid(int pid, int *status, int options)
       *status = -1;
     return -1;
   }
-  else {
+  else { 
+    p->oldPriority = p->priority;
+    if (p->priority > curproc->priority) {
+      p->priority = curproc->priority;
+    }
     for(;;){
       if(p->state == ZOMBIE){
         // Found one.
+	p->priority = p->oldPriority;
         //procid = p->pid;
 	//cprintf("Waitpid: %d \n", pid);
         kfree(p->kstack);
